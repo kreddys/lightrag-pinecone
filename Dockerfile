@@ -29,6 +29,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install curl in the final stage
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only necessary files from builder
 COPY --from=builder /root/.local /root/.local
 COPY ./lightrag ./lightrag
