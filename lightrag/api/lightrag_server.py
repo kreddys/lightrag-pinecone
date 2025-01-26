@@ -29,6 +29,8 @@ import pipmaster as pm
 
 from dotenv import load_dotenv
 
+from lightrag.pinecone_embedding import pinecone_embedding
+
 load_dotenv()
 
 
@@ -769,31 +771,7 @@ def create_app(args):
     embedding_func = EmbeddingFunc(
         embedding_dim=args.embedding_dim,
         max_token_size=args.max_embed_tokens,
-        func=lambda texts: lollms_embed(
-            texts,
-            embed_model=args.embedding_model,
-            host=args.embedding_binding_host,
-            api_key=args.embedding_binding_api_key,
-        )
-        if args.embedding_binding == "lollms"
-        else ollama_embed(
-            texts,
-            embed_model=args.embedding_model,
-            host=args.embedding_binding_host,
-            api_key=args.embedding_binding_api_key,
-        )
-        if args.embedding_binding == "ollama"
-        else azure_openai_embed(
-            texts,
-            model=args.embedding_model,  # no host is used for openai,
-            api_key=args.embedding_binding_api_key,
-        )
-        if args.embedding_binding == "azure_openai"
-        else openai_embed(
-            texts,
-            model=args.embedding_model,  # no host is used for openai,
-            api_key=args.embedding_binding_api_key,
-        ),
+        func=pinecone_embedding  # Use the custom Pinecone embedding function
     )
 
     # Initialize RAG
