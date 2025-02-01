@@ -1,0 +1,15 @@
+services:
+  lightrag:
+    build: .
+    ports:
+      - "${PORT:-9621}:9621"
+    volumes:
+      - ./data/rag_storage:/app/data/rag_storage
+      - ./data/inputs:/app/data/inputs
+    env_file:
+      - .env
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
