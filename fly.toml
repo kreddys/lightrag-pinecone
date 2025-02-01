@@ -1,16 +1,19 @@
-# fly.toml app configuration file generated for lightrag on 2025-01-26T19:43:44-06:00
+# fly.toml app configuration file generated for ghostwriter-lightrag-posts on 2025-02-01T00:52:24-06:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'ghostwriter-lightrag-pub'
+app = 'ghostwriter-lightrag-posts'
 primary_region = 'atl'
 
 [build]
 
+[[mounts]]
+source = 'rag_storage'
+destination = '/app/data/rag_storage'
+
 [http_service]
 internal_port = 9621
-force_https = true
 auto_stop_machines = 'stop'
 auto_start_machines = true
 min_machines_running = 0
@@ -20,7 +23,3 @@ processes = ['app']
 memory = '512mb'
 cpu_kind = 'shared'
 cpus = 1
-
-[[mounts]]
-source = "rag_storage"
-destination = "/app/data/rag_storage"

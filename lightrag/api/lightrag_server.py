@@ -30,7 +30,6 @@ import pipmaster as pm
 from dotenv import load_dotenv
 
 from lightrag.pinecone_embedding import pinecone_embedding
-from lightrag.kg.postgres_impl import PostgreSQLDB
 
 load_dotenv()
 
@@ -62,30 +61,6 @@ KV_STORAGE = "JsonKVStorage"
 DOC_STATUS_STORAGE = "JsonDocStatusStorage"
 GRAPH_STORAGE = "NetworkXStorage"
 VECTOR_STORAGE = "NanoVectorDBStorage"
-
-# PostgreSQL config
-postgres_host = os.getenv("POSTGRES_HOST", "localhost")
-postgres_port = int(os.getenv("POSTGRES_PORT", "5432"))
-postgres_user = os.getenv("POSTGRES_USER", "rag")
-postgres_password = os.getenv("POSTGRES_PASSWORD", "rag")
-postgres_database = os.getenv("POSTGRES_DATABASE", "rag")
-
-if postgres_host:
-    KV_STORAGE = "PGKVStorage"
-    DOC_STATUS_STORAGE = "PGDocStatusStorage"
-    GRAPH_STORAGE = "PGGraphStorage"
-    VECTOR_STORAGE = "PGVectorStorage"
-
-# Initialize PostgreSQL
-postgres_db = PostgreSQLDB(
-    config={
-        "host": postgres_host,
-        "port": postgres_port,
-        "user": postgres_user,
-        "password": postgres_password,
-        "database": postgres_database,
-    }
-)
 
 # read config.ini
 config = configparser.ConfigParser()
@@ -127,17 +102,6 @@ if mongo_uri:
     os.environ["MONGO_DATABASE"] = mongo_database
     KV_STORAGE = "MongoKVStorage"
     DOC_STATUS_STORAGE = "MongoKVStorage"
-
-# Initialize PostgreSQL
-postgres_db = PostgreSQLDB(
-    config={
-        "host": config.get("postgres", "host", fallback="localhost"),
-        "port": config.get("postgres", "port", fallback=5432),
-        "user": config.get("postgres", "user", fallback="rag"),
-        "password": config.get("postgres", "password", fallback="rag"),
-        "database": config.get("postgres", "database", fallback="rag"),
-    }
-)
 
 
 def get_default_host(binding_type: str) -> str:
@@ -715,10 +679,6 @@ def create_app(args):
         if args.auto_scan_at_startup:
             try:
 
-                # Initialize PostgreSQL database
-                await postgres_db.initdb()
-                await postgres_db.check_tables()
-
                 new_files = doc_manager.scan_directory()
                 for file_path in new_files:
                     try:
@@ -860,20 +820,6 @@ def create_app(args):
             vector_storage=VECTOR_STORAGE,
             doc_status_storage=DOC_STATUS_STORAGE,
         )
-    
-    # Set PostgreSQL database connection if using PostgreSQL storage
-    if postgres_host:
-        rag.doc_status.db = postgres_db
-        rag.full_docs.db = postgres_db
-        rag.text_chunks.db = postgres_db
-        rag.llm_response_cache.db = postgres_db
-        rag.key_string_value_json_storage_cls.db = postgres_db
-        rag.chunks_vdb.db = postgres_db
-        rag.relationships_vdb.db = postgres_db
-        rag.entities_vdb.db = postgres_db
-        rag.graph_storage_cls.db = postgres_db
-        rag.chunk_entity_relation_graph.db = postgres_db
-        rag.chunk_entity_relation_graph.embedding_func = rag.embedding_func
 
     async def index_file(file_path: Union[str, Path]) -> None:
         """Index all files inside the folder with support for multiple file formats
