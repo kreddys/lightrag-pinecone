@@ -30,6 +30,7 @@ import pipmaster as pm
 from dotenv import load_dotenv
 
 from lightrag.pinecone_embedding import pinecone_embedding
+from lightrag.utils import init_sentry, set_sentry_context, set_sentry_tag, set_sentry_user, capture_exception, add_breadcrumb
 
 load_dotenv()
 
@@ -637,6 +638,25 @@ def get_api_key_dependency(api_key: Optional[str]):
 
 def create_app(args):
     # Verify that bindings arer correctly setup
+
+    # Initialize Sentry
+    init_sentry(
+        dsn=os.getenv("SENTRY_DSN"),  # Get Sentry DSN from environment variables
+        environment=os.getenv("ENVIRONMENT", "development"),
+        traces_sample_rate=1.0 if os.getenv("ENVIRONMENT") == "development" else 0.2
+    )
+
+    # Set up Sentry context for the application
+    set_sentry_context("app_config", {
+        "llm_binding": args.llm_binding,
+        "embedding_binding": args.embedding_binding,
+        "host": args.host,
+        "port": args.port,
+        "working_dir": args.working_dir,
+        "input_dir": args.input_dir,
+    })
+
+
 
     if args.llm_binding not in [
         "lollms",
