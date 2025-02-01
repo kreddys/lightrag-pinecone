@@ -29,8 +29,9 @@ import pipmaster as pm
 
 from dotenv import load_dotenv
 
-from lightrag.pinecone_embedding import pinecone_embedding
-from lightrag.utils import init_sentry, set_sentry_context, set_sentry_tag, set_sentry_user, capture_exception, add_breadcrumb
+from lightrag.api.pinecone_embedding import pinecone_embedding
+import sentry_sdk
+from .query_endpoint import QueryEndpoint
 
 load_dotenv()
 
@@ -637,25 +638,27 @@ def get_api_key_dependency(api_key: Optional[str]):
 
 
 def create_app(args):
-    # Verify that bindings arer correctly setup
 
-    # Initialize Sentry
-    init_sentry(
-        dsn=os.getenv("SENTRY_DSN"),  # Get Sentry DSN from environment variables
+    # Initialize Sentry before creating FastAPI app
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),  # Get DSN from environment variables
+        send_default_pii=True,  # Add request headers and IP for users
+        traces_sample_rate=1.0 if os.getenv("ENVIRONMENT") == "development" else 0.2,
+        _experiments={
+            "continuous_profiling_auto_start": True,
+        },
         environment=os.getenv("ENVIRONMENT", "development"),
-        traces_sample_rate=1.0 if os.getenv("ENVIRONMENT") == "development" else 0.2
     )
 
-    # Set up Sentry context for the application
-    set_sentry_context("app_config", {
+    # Add application context to Sentry
+    sentry_sdk.set_context("app_config", {
         "llm_binding": args.llm_binding,
         "embedding_binding": args.embedding_binding,
-        "host": args.host,
-        "port": args.port,
         "working_dir": args.working_dir,
         "input_dir": args.input_dir,
+        "model": args.llm_model,
+        "max_tokens": args.max_tokens
     })
-
 
 
     if args.llm_binding not in [
@@ -727,6 +730,12 @@ def create_app(args):
         openapi_tags=[{"name": "api"}],
         lifespan=lifespan,
     )
+
+    # Add a test endpoint to verify Sentry integration
+    @app.get("/sentry-debug")
+    async def trigger_error():
+        division_by_zero = 1 / 0
+        return division_by_zero
 
     # Add CORS middleware
     app.add_middleware(
@@ -998,57 +1007,13 @@ def create_app(args):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    @app.post(
-        "/query", response_model=QueryResponse, dependencies=[Depends(optional_api_key)]
-    )
-    async def query_text(request: QueryRequest):
-        """
-        Handle a POST request at the /query endpoint to process user queries using RAG capabilities.
-
-        Parameters:
-            request (QueryRequest): A Pydantic model containing the following fields:
-                - query (str): The text of the user's query.
-                - mode (ModeEnum): Optional. Specifies the mode of retrieval augmentation.
-                - stream (bool): Optional. Determines if the response should be streamed.
-                - only_need_context (bool): Optional. If true, returns only the context without further processing.
-
-        Returns:
-            QueryResponse: A Pydantic model containing the result of the query processing.
-                           If a string is returned (e.g., cache hit), it's directly returned.
-                           Otherwise, an async generator may be used to build the response.
-
-        Raises:
-            HTTPException: Raised when an error occurs during the request handling process,
-                           with status code 500 and detail containing the exception message.
-        """
-        try:
-            response = await rag.aquery(
-                request.query,
-                param=QueryParam(
-                    mode=request.mode,
-                    stream=request.stream,
-                    only_need_context=request.only_need_context,
-                ),
-            )
-
-            # If response is a string (e.g. cache hit), return directly
-            if isinstance(response, str):
-                return QueryResponse(response=response)
-
-            # If it's an async generator, decide whether to stream based on stream parameter
-            if request.stream:
-                result = ""
-                async for chunk in response:
-                    result += chunk
-                return QueryResponse(response=result)
-            else:
-                result = ""
-                async for chunk in response:
-                    result += chunk
-                return QueryResponse(response=result)
-        except Exception as e:
-            trace_exception(e)
-            raise HTTPException(status_code=500, detail=str(e))
+    # Register the query endpoint
+    query_endpoint = QueryEndpoint(rag)
+    app.post(
+        "/query",
+        response_model=QueryResponse,
+        dependencies=[Depends(optional_api_key)]
+    )(query_endpoint.query_text)
 
     @app.post("/query/stream", dependencies=[Depends(optional_api_key)])
     async def query_text_stream(request: QueryRequest):
