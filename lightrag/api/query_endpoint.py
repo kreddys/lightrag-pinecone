@@ -3,6 +3,7 @@
 from fastapi import HTTPException
 import sentry_sdk
 from lightrag import QueryParam
+import logging
 
 class QueryEndpoint:
     def __init__(self, rag):
@@ -12,6 +13,13 @@ class QueryEndpoint:
         """
         Handle a POST request to process user queries using RAG capabilities.
         """
+
+        logging.debug(f"Processing query request: {request}")
+        logging.debug(f"Query text: {request.query}")
+        logging.debug(f"Query mode: {request.mode}")
+        logging.debug(f"Stream enabled: {request.stream}")
+        logging.debug(f"Only need context: {request.only_need_context}")
+        
         # Start a new transaction for this query
         with sentry_sdk.start_transaction(
             op="query",

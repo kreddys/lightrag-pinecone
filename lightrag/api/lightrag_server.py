@@ -1009,11 +1009,16 @@ def create_app(args):
 
     # Register the query endpoint
     query_endpoint = QueryEndpoint(rag)
-    app.post(
-        "/query",
-        response_model=QueryResponse,
-        dependencies=[Depends(optional_api_key)]
-    )(query_endpoint.query_text)
+    @app.post("/query", response_model=QueryResponse, dependencies=[Depends(optional_api_key)])
+    async def query_route(request: QueryRequest):
+        logging.info(f"Received query request: {request}")
+        try:
+            response = await query_endpoint.query_text(request)
+            logging.info(f"Query response generated: {response}")
+            return response
+        except Exception as e:
+            logging.error(f"Error processing query: {str(e)}")
+            raise
 
     @app.post("/query/stream", dependencies=[Depends(optional_api_key)])
     async def query_text_stream(request: QueryRequest):
