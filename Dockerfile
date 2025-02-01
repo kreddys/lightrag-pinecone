@@ -21,8 +21,8 @@ COPY requirements.txt .
 COPY lightrag/api/requirements.txt ./lightrag/api/
 
 # Install dependencies
-RUN pip install --user --no-cache-dir -r requirements.txt
-RUN pip install --user --no-cache-dir -r lightrag/api/requirements.txt
+RUN pip install --user --no-cache-dir -r requirements.txt \
+    && pip install --user --no-cache-dir -r lightrag/api/requirements.txt
 
 # Final stage
 FROM python:3.11-slim
@@ -38,7 +38,10 @@ COPY --from=builder /root/.local /root/.local
 COPY ./lightrag ./lightrag
 COPY setup.py .
 
-RUN pip install .
+# Install the application and clean up
+RUN pip install --no-cache-dir . \
+    && rm -rf /root/.cache/pip
+
 # Make sure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
 
