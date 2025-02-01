@@ -17,6 +17,33 @@ import tiktoken
 
 from lightrag.prompt import PROMPTS
 
+import logging
+import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.fastapi import FastAPIIntegration
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
+
+logger = logging.getLogger("lightrag")
+
+def init_sentry(dsn: str = None, environment: str = "development", traces_sample_rate: float = 1.0):
+    """Initialize Sentry SDK with the provided configuration"""
+    if dsn:
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=environment,
+            integrations=[
+                LoggingIntegration(
+                    level=logging.INFO,        # Capture info and above as breadcrumbs
+                    event_level=logging.ERROR  # Send errors as events
+                ),
+                FastAPIIntegration(),
+                AsyncioIntegration(),
+            ],
+            traces_sample_rate=traces_sample_rate,
+            profiles_sample_rate=1.0,
+        )
+        logger.info(f"Sentry initialized for environment: {environment}")
+
 
 class UnlimitedSemaphore:
     """A context manager that allows unlimited access."""
@@ -38,19 +65,76 @@ logger = logging.getLogger("lightrag")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-def set_logger(log_file: str):
+def set_logger(log_file: str, sentry_dsn: str = None, environment: str = "development"):
+    """
+    Configure logging with optional Sentry integration
+    
+    Args:
+        log_file: Path to log file
+        sentry_dsn: Sentry DSN for error tracking
+        environment: Environment name (development, production, etc.)
+    """
     logger.setLevel(logging.DEBUG)
 
+    # File handler setup
     file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
 
+    # Console handler setup
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    # Formatter setup
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
 
+    # Add handlers if not already added
     if not logger.handlers:
         logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+    # Initialize Sentry if DSN is provided
+    if sentry_dsn:
+        init_sentry(
+            dsn=sentry_dsn,
+            environment=environment,
+            traces_sample_rate=1.0 if environment == "development" else 0.2
+        )
+
+# Add utility functions for Sentry context
+def set_sentry_context(context_name: str, context_data: dict):
+    """Add custom context to Sentry events"""
+    if sentry_sdk.Hub.current.client:
+        sentry_sdk.set_context(context_name, context_data)
+
+def set_sentry_tag(key: str, value: str):
+    """Add custom tag to Sentry events"""
+    if sentry_sdk.Hub.current.client:
+        sentry_sdk.set_tag(key, value)
+
+def set_sentry_user(user_data: dict):
+    """Set user context in Sentry"""
+    if sentry_sdk.Hub.current.client:
+        sentry_sdk.set_user(user_data)
+
+def capture_exception(error: Exception, **kwargs):
+    """Capture exception with additional context"""
+    if sentry_sdk.Hub.current.client:
+        sentry_sdk.capture_exception(error, **kwargs)
+    logger.exception(error)
+
+def add_breadcrumb(category: str, message: str, level: str = "info", data: dict = None):
+    """Add breadcrumb to Sentry events"""
+    if sentry_sdk.Hub.current.client:
+        sentry_sdk.add_breadcrumb(
+            category=category,
+            message=message,
+            level=level,
+            data=data
+        )
 
 
 @dataclass

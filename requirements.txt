@@ -41,3 +41,4 @@ tqdm
 xxhash
 
 pinecone[grpc]
+sentry-sdk[fastapi]
