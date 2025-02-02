@@ -6,7 +6,7 @@ services:
     ports:
       - "${PORT:-9621}:9621"
     volumes:
-      - ./data/rag_storage:/app/data/rag_storage
+      - ./data/rag_storage_upsert:/app/data/rag_storage_upsert
       - ./data/inputs:/app/data/inputs
     env_file:
       - .env

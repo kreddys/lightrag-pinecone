@@ -17,6 +17,7 @@ gui/
 .vscode
 inputs
 rag_storage
+rag_storage_upsert
 .env
 venv/
 examples/input/
